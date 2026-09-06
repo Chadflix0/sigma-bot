@@ -38,6 +38,7 @@ jobs:
           BOT_ID: '1545809315779051550'
           TEST_USER_ID: '849644621047005244'
           GUILD_NAME: "chadflix's sigma server"
+          CHADLING_ROLE_ID: '1546252000738680965'
         run: pwsh -NoProfile -File ./welcomer.ps1
 
       - name: Commit state memory
