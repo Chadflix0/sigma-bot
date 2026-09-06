@@ -1,0 +1,54 @@
+name: sigma-bot
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sigma-bot-run
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Autoposter - check YouTube feed
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          YT_FEED_URL: https://www.youtube.com/feeds/videos.xml?channel_id=UCiHatmUhoKP9JQ2TksNlHtg
+          POST_CHANNEL_ID: '1546203254529200209'
+          ROLE_ID: '1546212060046696578'
+          CHANNEL_NAME: realchadflix
+          CHANNEL_URL: https://www.youtube.com/@realchadflix
+        run: pwsh -NoProfile -File ./autoposter.ps1
+
+      - name: Welcomer - check for new members
+        if: ${{ always() }}
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          GUILD_ID: '1545802978315870338'
+          WELCOME_CHANNEL_ID: '1545802982078288007'
+          BOT_ID: '1545809315779051550'
+          TEST_USER_ID: '849644621047005244'
+          GUILD_NAME: "chadflix's sigma server"
+        run: pwsh -NoProfile -File ./welcomer.ps1
+
+      - name: Commit state memory
+        if: ${{ always() }}
+        run: |
+          git config user.name "sigma-bot[bot]"
+          git config user.email "actions@users.noreply.github.com"
+          git add state-autoposter.json state-welcomer.json
+          if git diff --cached --quiet; then
+            echo "no state change"
+          else
+            git commit -m "state update"
+            git push
+          fi
