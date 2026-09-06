@@ -1,5 +1,5 @@
-# Sigma Welcomer - polls guild members and greets newcomers in #welcome
-# Runs on GitHub Actions every 5 minutes. Config comes from environment variables.
+# Sigma Welcomer - polls guild members, greets newcomers in #welcome and grants the Chadling role
+# Runs on GitHub Actions every 2 minutes. Config comes from environment variables.
 param([switch]$InitOnly, [switch]$TestWelcome)
 $ErrorActionPreference = 'Stop'
 $dir = $PSScriptRoot
@@ -9,6 +9,7 @@ $welcomeChannelId = $env:WELCOME_CHANNEL_ID
 $botId = $env:BOT_ID
 $testUserId = $env:TEST_USER_ID
 $guildName = $env:GUILD_NAME
+$chadlingRoleId = $env:CHADLING_ROLE_ID
 $statePath = Join-Path $dir 'state-welcomer.json'
 $state = if (Test-Path $statePath) { Get-Content $statePath -Raw | ConvertFrom-Json } else { [PSCustomObject]@{ known = @() } }
 $H = @{ Authorization = "Bot $token"; 'User-Agent' = 'DiscordBot (https://example.com, 1.0)'; Accept = 'application/json' }
@@ -23,13 +24,19 @@ function AvatarUrl($u) {
 }
 function DisplayName($u) { if ($u.global_name) { $u.global_name } else { $u.username } }
 
+function Grant-Chadling([string]$userId) {
+    if (-not $chadlingRoleId) { return }
+    Invoke-RestMethod -Method Put -Uri "$base/guilds/$guildId/members/$userId/roles/$chadlingRoleId" -Headers $H | Out-Null
+}
+
 function Send-Welcome($m) {
     $name = DisplayName $m.user
     $av = AvatarUrl $m.user
     $srv = Get-Unix $m.joined_at
     $acct = SnowToUnix $m.user.id
+    $extra = if ($chadlingRoleId) { ' You got the **Chadling** role 🎉' } else { '' }
     $body = @{
-        content = "Welcome to the server, <@$($m.user.id)>!"
+        content = "Welcome to the server, <@$($m.user.id)>!$extra"
         embeds  = @(@{
             author    = @{ name = $name; icon_url = $av }
             thumbnail = @{ url = $av }
@@ -48,6 +55,7 @@ function Send-Welcome($m) {
 if ($TestWelcome) {
     $m = Invoke-RestMethod -Uri "$base/guilds/$guildId/members/$testUserId" -Headers $H
     Send-Welcome $m
+    Grant-Chadling $m.user.id
     Write-Output 'TEST WELCOME SENT'
     exit
 }
@@ -64,6 +72,7 @@ if ($InitOnly) {
 $new = @($members | Where-Object { $state.known -notcontains $_.user.id -and $_.user.id -ne $botId -and -not $_.user.bot })
 foreach ($m in $new) {
     Send-Welcome $m
+    try { Grant-Chadling $m.user.id } catch { Write-Output "WARN: Chadling grant failed for $($m.user.id): $($_.Exception.Message)" }
     Start-Sleep -Milliseconds 500
     Write-Output "WELCOMED: $($m.user.username)"
 }
