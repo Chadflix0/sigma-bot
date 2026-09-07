@@ -2,11 +2,12 @@ name: sigma-bot
 
 on:
   schedule:
-    - cron: '*/2 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: sigma-bot-run
@@ -53,3 +54,9 @@ jobs:
             git commit -m "state update"
             git push
           fi
+
+      - name: Re-arm next run (self-chaining)
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run sigma-bot.yml --ref main
